@@ -1,24 +1,29 @@
 import cv2
 import RobotRaconteur as RR
 RRN = RR.RobotRaconteurNode.s
+import RobotRaconteurCompanion as RRC
 import argparse
 import sys
 import platform
 import threading
 import numpy as np
-
-
+from RobotRaconteurCompanion.Util.InfoFileLoader import InfoFileLoader
+from RobotRaconteurCompanion.Util.DateTimeUtil import DateTimeUtil
+from RobotRaconteurCompanion.Util.SensorDataUtil import SensorDataUtil
 
 
 class CameraImpl(object):
     
-    def __init__(self, device_id, width, height, fps):
+    def __init__(self, device_id, width, height, fps, camera_info):
         
         #if platform.system() == "Windows":
         #    self._capture = cv2.VideoCapture(device_id + cv2.CAP_DSHOW)
         #else:
         self._capture = cv2.VideoCapture(device_id)
-        #assert self._capture.isOpened(), f"Could not open device: {device_id}"
+        assert self._capture.isOpened(), f"Could not open device: {device_id}"
+
+        self._seqno = 0
+
         self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         self._capture.set(cv2.CAP_PROP_FPS, fps)
@@ -33,15 +38,30 @@ class CameraImpl(object):
         self._capture_lock = threading.Lock()
         self._streaming = False
         self._fps = self._capture.get(cv2.CAP_PROP_FPS)
+        self._camera_info = camera_info
+        self._date_time_util = DateTimeUtil(RRN)
+        self._sensor_data_util = SensorDataUtil(RRN)
 
     def RRServiceObjectInit(self, ctx, service_path):
         self._downsampler = RR.BroadcastDownsampler(ctx)
         self._downsampler.AddPipeBroadcaster(self.frame_stream)
         self._downsampler.AddPipeBroadcaster(self.frame_stream_compressed)
         self._downsampler.AddPipeBroadcaster(self.preview_stream)
+        self._downsampler.AddWireBroadcaster(self.device_clock_now)
         self.frame_stream.MaxBacklog = 2
         self.frame_stream_compressed.MaxBacklog = 2
         self.preview_stream.MaxBacklog = 2
+        
+        # TODO: Broadcaster peek handler in Python
+        # self.device_clock_now._wire.PeekInValueCallback = lambda: self._date_time_util.FillDeviceTime(self._camera_info.device_info,self._seqno)
+
+    @property
+    def device_info(self):
+        return self._camera_info.device_info
+
+    @property
+    def camera_info(self):
+        return self._camera_info
 
     def _cv_mat_to_image(self, mat):
 
@@ -58,6 +78,8 @@ class CameraImpl(object):
         else:
             image_info.step = mat.shape[1]*3
             image_info.encoding = self._image_consts["ImageEncoding"]["rgb8"]
+        image_info.data_header = self._sensor_data_util.FillSensorDataHeader(self._camera_info.device_info,self._seqno)
+        
 
         image = self._image_type()
         image.image_info = image_info
@@ -76,6 +98,7 @@ class CameraImpl(object):
         
         image_info.step = 0
         image_info.encoding = self._image_consts["ImageEncoding"]["compressed"]
+        image_info.data_header = self._sensor_data_util.FillSensorDataHeader(self._camera_info.device_info,self._seqno)
         
         image = self._compressed_image_type()
         image.image_info = image_info
@@ -88,7 +111,8 @@ class CameraImpl(object):
         with self._capture_lock:
             ret, mat=self._capture.read()
             if not ret:
-                raise RRN.OperationFailedException("Could not read from camera")
+                raise RR.OperationFailedException("Could not read from camera")
+            self._seqno+=1
         return self._cv_mat_to_image(mat)
 
     def capture_frame_compressed(self):
@@ -96,9 +120,10 @@ class CameraImpl(object):
             ret, mat=self._capture.read()
             if not ret:
                 raise RRN.OperationFailedException("Could not read from camera")
+            self._seqno+=1
         return self._cv_mat_to_compressed_image(mat)
 
-    def trigger():
+    def trigger(self):
         raise RR.NotImplementedException("Not available on this device")
 
     def frame_threadfunc(self):
@@ -109,10 +134,13 @@ class CameraImpl(object):
                     #TODO: notify user?
                     self._streaming=False
                     continue
+                self._seqno+=1
             
             self.frame_stream.AsyncSendPacket(self._cv_mat_to_image(mat),lambda: None)
             self.frame_stream_compressed.AsyncSendPacket(self._cv_mat_to_compressed_image(mat),lambda: None)
             self.preview_stream.AsyncSendPacket(self._cv_mat_to_compressed_image(mat,70),lambda: None)
+            device_now = self._date_time_util.FillDeviceTime(self._camera_info.device_info,self._seqno)
+            self.device_clock_now.OutValue = device_now
 
     def start_streaming(self):
         if (self._streaming):
@@ -149,6 +177,7 @@ class CameraImpl(object):
 
 def main():
     parser = argparse.ArgumentParser(description="OpenCV based camera driver service for Robot Raconteur")
+    parser.add_argument("--camera-info-file", type=argparse.FileType('r'),default=None,required=True,help="Camera info file (required)")
     parser.add_argument("--device-id", type=int, default=0, help="the device to open (default 0)")
     parser.add_argument("--width", type=int, default=1280, help="try to set width of image (default 1280)")
     parser.add_argument("--height", type=int, default=720, help="try to set height of image (default 720)")
@@ -159,9 +188,16 @@ def main():
 
     rr_args = ["--robotraconteur-jumbo-message=true"] + sys.argv
 
-    RRN.RegisterServiceTypesFromFiles(['com.robotraconteur.imaging'],True)
+    #RRN.RegisterServiceTypesFromFiles(['com.robotraconteur.imaging'],True)
+    RRC.RegisterStdRobDefServiceTypes(RRN)
 
-    camera = CameraImpl(args.device_id,args.width,args.height,args.fps)
+    with args.camera_info_file:
+        camera_info_text = args.camera_info_file.read()
+
+    info_loader = InfoFileLoader(RRN)
+    camera_info, camera_ident_fd = info_loader.LoadInfoFileFromString(camera_info_text, "com.robotraconteur.imaging.camerainfo.CameraInfo", "camera")
+
+    camera = CameraImpl(args.device_id,args.width,args.height,args.fps, camera_info)
     for _ in range(10):
         camera.capture_frame()
     
