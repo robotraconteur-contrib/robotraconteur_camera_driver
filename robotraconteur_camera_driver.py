@@ -10,6 +10,7 @@ import numpy as np
 from RobotRaconteurCompanion.Util.InfoFileLoader import InfoFileLoader
 from RobotRaconteurCompanion.Util.DateTimeUtil import DateTimeUtil
 from RobotRaconteurCompanion.Util.SensorDataUtil import SensorDataUtil
+from RobotRaconteurCompanion.Util.AttributesUtil import AttributesUtil
 
 
 class CameraImpl(object):
@@ -53,7 +54,7 @@ class CameraImpl(object):
         self.preview_stream.MaxBacklog = 2
         
         # TODO: Broadcaster peek handler in Python
-        # self.device_clock_now._wire.PeekInValueCallback = lambda: self._date_time_util.FillDeviceTime(self._camera_info.device_info,self._seqno)
+        self.device_clock_now.PeekInValueCallback = lambda ep: self._date_time_util.FillDeviceTime(self._camera_info.device_info,self._seqno)
 
     @property
     def device_info(self):
@@ -197,6 +198,9 @@ def main():
     info_loader = InfoFileLoader(RRN)
     camera_info, camera_ident_fd = info_loader.LoadInfoFileFromString(camera_info_text, "com.robotraconteur.imaging.camerainfo.CameraInfo", "camera")
 
+    attributes_util = AttributesUtil(RRN)
+    camera_attributes = attributes_util.GetDefaultServiceAttributesFromDeviceInfo(camera_info.device_info)
+
     camera = CameraImpl(args.device_id,args.width,args.height,args.fps, camera_info)
     for _ in range(10):
         camera.capture_frame()
@@ -204,8 +208,7 @@ def main():
     with RR.ServerNodeSetup("com.robotraconteur.imaging.camera",59823,argv=rr_args):
 
         service_ctx = RRN.RegisterService("camera","com.robotraconteur.imaging.Camera",camera)
-
-
+        service_ctx.SetServiceAttributes(camera_attributes)
 
         if args.wait_signal:  
             #Wait for shutdown signal if running in service mode          
