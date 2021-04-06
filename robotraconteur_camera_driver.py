@@ -78,7 +78,7 @@ class CameraImpl(object):
             image_info.encoding = self._image_consts["ImageEncoding"]["mono8"]
         else:
             image_info.step = mat.shape[1]*3
-            image_info.encoding = self._image_consts["ImageEncoding"]["rgb8"]
+            image_info.encoding = self._image_consts["ImageEncoding"]["bgr888"]
         image_info.data_header = self._sensor_data_util.FillSensorDataHeader(self._camera_info.device_info,self._seqno)
         
 
