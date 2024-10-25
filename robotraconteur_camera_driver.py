@@ -11,12 +11,14 @@ from RobotRaconteurCompanion.Util.InfoFileLoader import InfoFileLoader
 from RobotRaconteurCompanion.Util.DateTimeUtil import DateTimeUtil
 from RobotRaconteurCompanion.Util.SensorDataUtil import SensorDataUtil
 from RobotRaconteurCompanion.Util.AttributesUtil import AttributesUtil
+from RobotRaconteurCompanion.Util.IdentifierUtil import IdentifierUtil
 import drekar_launch_process
 
 
 class CameraImpl(object):
     
-    def __init__(self, device_id, width, height, fps, camera_info, focus = None, exposure = None, gain = None):
+    def __init__(self, device_id, width, height, fps, camera_info, focus = None, exposure = None, gain = None,
+                 brightness = None, contrast = None, saturation = None):
         
         #if platform.system() == "Windows":
         #    self._capture = cv2.VideoCapture(device_id + cv2.CAP_DSHOW)
@@ -39,6 +41,15 @@ class CameraImpl(object):
         if gain is not None:
             self._capture.set(cv2.CAP_PROP_GAIN, gain)
 
+        if brightness is not None:
+            self._capture.set(cv2.CAP_PROP_BRIGHTNESS, brightness)
+        
+        if contrast is not None:
+            self._capture.set(cv2.CAP_PROP_CONTRAST, contrast)
+        
+        if saturation is not None:
+            self._capture.set(cv2.CAP_PROP_SATURATION, saturation)
+
         self._imaging_consts = RRN.GetConstants('com.robotraconteur.imaging')
         self._image_consts = RRN.GetConstants('com.robotraconteur.image')
         self._image_type = RRN.GetStructureType('com.robotraconteur.image.Image')
@@ -52,6 +63,7 @@ class CameraImpl(object):
         self._camera_info = camera_info
         self._date_time_util = DateTimeUtil(RRN)
         self._sensor_data_util = SensorDataUtil(RRN)
+        self._identifier_util = IdentifierUtil(RRN)
 
     def RRServiceObjectInit(self, ctx, service_path):
         self._downsampler = RR.BroadcastDownsampler(ctx)
@@ -192,6 +204,12 @@ class CameraImpl(object):
             return RR.VarValue(self._capture.get(cv2.CAP_PROP_EXPOSURE), "double")
         elif name == "gain":
             return RR.VarValue(self._capture.get(cv2.CAP_PROP_GAIN), "double")
+        elif name =="brightness":
+            return RR.VarValue(self._capture.get(cv2.CAP_PROP_BRIGHTNESS), "double")
+        elif name =="contrast":
+            return RR.VarValue(self._capture.get(cv2.CAP_PROP_CONTRAST), "double")
+        elif name == "saturation":
+            return RR.VarValue(self._capture.get(cv2.CAP_PROP_SATURATION), "double")
         else:
             raise RR.InvalidOperationException("Parameter not found")
 
@@ -203,10 +221,39 @@ class CameraImpl(object):
             self._capture.set(cv2.CAP_PROP_EXPOSURE, value.data[0])
         elif name == "gain":
             self._capture.set(cv2.CAP_PROP_GAIN, value.data[0])
+        elif name =="brightness":
+            self._capture.set(cv2.CAP_PROP_BRIGHTNESS, value.data[0])
+        elif name =="contrast":
+            self._capture.set(cv2.CAP_PROP_CONTRAST, value.data[0])
+        elif name == "saturation":
+            self._capture.set(cv2.CAP_PROP_SATURATION, value.data[0])
         else:
             raise RR.InvalidOperationException("Parameter not found")
+        
+    @property
+    def param_info(self):
+        
+        param_info_type = RRN.GetStructureType("com.robotraconteur.param.ParameterInfo")
 
-    
+        data_type = RRN.GetStructureType("com.robotraconteur.datatype.DataType")
+        data_type_const = RRN.GetConstants("com.robotraconteur.datatype")
+
+        def p(name, description):
+            r = param_info_type()
+            r.parameter_identifier = self._identifier_util.CreateIdentifierFromName(name)
+            r.data_type = data_type()
+            r.data_type.type_code = data_type_const["DataTypeCode"]["double_c"]
+            r.description = description
+            return r
+
+        return [
+                p("focus", "Focus of the camera (CAP_PROP_FOCUS property)"),
+                p("exposure", "Exposure of the camera (CAP_PROP_EXPOSURE property)"),
+                p("gain", "Gain of the camera (CAP_PROP_GAIN property)"),
+                p("brightness", "Brightness of the camera (CAP_PROP_BRIGHTNESS property)"),
+                p("contrast", "Contrast of the camera (CAP_PROP_CONTRAST property)"),
+                p("saturation", "Saturation of the camera (CAP_PROP_SATURATION property)"),
+            ]
 
 def main():
     parser = argparse.ArgumentParser(description="OpenCV based camera driver service for Robot Raconteur")
@@ -218,6 +265,9 @@ def main():
     parser.add_argument("--focus", type=float, default=None, help="try to set focus of camera (default unset)")
     parser.add_argument("--exposure", type=float, default=None, help="try to set exposure of camera (default unset)")
     parser.add_argument("--gain", type=float, default=None, help="try to set gain of camera (default  unset)")
+    parser.add_argument("--brightness", type=float, default=None, help="try to set brightness of camera (default unset)")
+    parser.add_argument("--contrast", type=float, default=None, help="try to set contrast of camera (default unset)")
+    parser.add_argument("--saturation", type=float, default=None, help="try to set saturation of camera (default unset)")
 
     args, _ = parser.parse_known_args()
 
@@ -235,7 +285,7 @@ def main():
     attributes_util = AttributesUtil(RRN)
     camera_attributes = attributes_util.GetDefaultServiceAttributesFromDeviceInfo(camera_info.device_info)
 
-    camera = CameraImpl(args.device_id,args.width,args.height,args.fps, camera_info)
+    camera = CameraImpl(args.device_id,args.width,args.height,args.fps, camera_info, args.focus, args.exposure, args.gain, args.brightness, args.contrast, args.saturation)
     for _ in range(10):
         camera.capture_frame()
     
