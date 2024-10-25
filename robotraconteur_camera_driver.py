@@ -16,7 +16,7 @@ import drekar_launch_process
 
 class CameraImpl(object):
     
-    def __init__(self, device_id, width, height, fps, camera_info):
+    def __init__(self, device_id, width, height, fps, camera_info, focus = None, exposure = None, gain = None):
         
         #if platform.system() == "Windows":
         #    self._capture = cv2.VideoCapture(device_id + cv2.CAP_DSHOW)
@@ -29,6 +29,15 @@ class CameraImpl(object):
         self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         self._capture.set(cv2.CAP_PROP_FPS, fps)
+
+        if focus is not None:
+            self._capture.set(cv2.CAP_PROP_FOCUS, focus)
+
+        if exposure is not None:
+            self._capture.set(cv2.CAP_PROP_EXPOSURE, exposure)
+
+        if gain is not None:
+            self._capture.set(cv2.CAP_PROP_GAIN, gain)
 
         self._imaging_consts = RRN.GetConstants('com.robotraconteur.imaging')
         self._image_consts = RRN.GetConstants('com.robotraconteur.image')
@@ -174,6 +183,28 @@ class CameraImpl(object):
     @property
     def capabilities(self):
         return 0x1 | 0x2 | 0x4
+    
+    def getf_param(self, name):
+
+        if name == "focus":
+            return RR.VarValue(self._capture.get(cv2.CAP_PROP_FOCUS), "double")
+        elif name == "exposure":
+            return RR.VarValue(self._capture.get(cv2.CAP_PROP_EXPOSURE), "double")
+        elif name == "gain":
+            return RR.VarValue(self._capture.get(cv2.CAP_PROP_GAIN), "double")
+        else:
+            raise RR.InvalidOperationException("Parameter not found")
+
+
+    def setf_param(self, name, value):
+        if name == "focus":
+            self._capture.set(cv2.CAP_PROP_FOCUS, value.data[0])
+        elif name == "exposure":
+            self._capture.set(cv2.CAP_PROP_EXPOSURE, value.data[0])
+        elif name == "gain":
+            self._capture.set(cv2.CAP_PROP_GAIN, value.data[0])
+        else:
+            raise RR.InvalidOperationException("Parameter not found")
 
     
 
@@ -184,6 +215,9 @@ def main():
     parser.add_argument("--width", type=int, default=1280, help="try to set width of image (default 1280)")
     parser.add_argument("--height", type=int, default=720, help="try to set height of image (default 720)")
     parser.add_argument("--fps", type=int, default=15, help="try to set rate of video capture (default 15 fps)")
+    parser.add_argument("--focus", type=float, default=None, help="try to set focus of camera (default unset)")
+    parser.add_argument("--exposure", type=float, default=None, help="try to set exposure of camera (default unset)")
+    parser.add_argument("--gain", type=float, default=None, help="try to set gain of camera (default  unset)")
 
     args, _ = parser.parse_known_args()
 
