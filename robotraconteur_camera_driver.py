@@ -11,6 +11,7 @@ from RobotRaconteurCompanion.Util.InfoFileLoader import InfoFileLoader
 from RobotRaconteurCompanion.Util.DateTimeUtil import DateTimeUtil
 from RobotRaconteurCompanion.Util.SensorDataUtil import SensorDataUtil
 from RobotRaconteurCompanion.Util.AttributesUtil import AttributesUtil
+import drekar_launch_process
 
 
 class CameraImpl(object):
@@ -183,7 +184,6 @@ def main():
     parser.add_argument("--width", type=int, default=1280, help="try to set width of image (default 1280)")
     parser.add_argument("--height", type=int, default=720, help="try to set height of image (default 720)")
     parser.add_argument("--fps", type=int, default=15, help="try to set rate of video capture (default 15 fps)")
-    parser.add_argument("--wait-signal",action='store_const',const=True,default=False, help="wait for SIGTERM orSIGINT (Linux only)")
 
     args, _ = parser.parse_known_args()
 
@@ -210,18 +210,10 @@ def main():
         service_ctx = RRN.RegisterService("camera","com.robotraconteur.imaging.Camera",camera)
         service_ctx.SetServiceAttributes(camera_attributes)
 
-        if args.wait_signal:  
-            #Wait for shutdown signal if running in service mode          
-            print("Press Ctrl-C to quit...")
-            import signal
-            signal.sigwait([signal.SIGTERM,signal.SIGINT])
-        else:
-            #Wait for the user to shutdown the service
-            if (sys.version_info > (3, 0)):
-                input("Server started, press enter to quit...")
-            else:
-                raw_input("Server started, press enter to quit...")
-
+       
+        #Wait for exit
+        print("Press Ctrl-C to quit...")
+        drekar_launch_process.wait_exit()
 
 if __name__ == "__main__":
     main()
