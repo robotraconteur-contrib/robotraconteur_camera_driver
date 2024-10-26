@@ -13,6 +13,7 @@ from RobotRaconteurCompanion.Util.SensorDataUtil import SensorDataUtil
 from RobotRaconteurCompanion.Util.AttributesUtil import AttributesUtil
 from RobotRaconteurCompanion.Util.IdentifierUtil import IdentifierUtil
 import drekar_launch_process
+from contextlib import suppress
 
 
 class CameraImpl(object):
@@ -57,6 +58,7 @@ class CameraImpl(object):
         self._compressed_image_type = RRN.GetStructureType('com.robotraconteur.image.CompressedImage')
         self._date_time_utc_type = RRN.GetPodDType('com.robotraconteur.datetime.DateTimeUTC')
         self._isoch_info = RRN.GetStructureType('com.robotraconteur.device.isoch.IsochInfo')
+        self._camera_state_type = RRN.GetStructureType('com.robotraconteur.imaging.CameraState')
         self._capture_lock = threading.Lock()
         self._streaming = False
         self._fps = self._capture.get(cv2.CAP_PROP_FPS)
@@ -64,6 +66,9 @@ class CameraImpl(object):
         self._date_time_util = DateTimeUtil(RRN)
         self._sensor_data_util = SensorDataUtil(RRN)
         self._identifier_util = IdentifierUtil(RRN)
+        self._seqno = 0
+        
+        self._state_timer = None
 
     def RRServiceObjectInit(self, ctx, service_path):
         self._downsampler = RR.BroadcastDownsampler(ctx)
@@ -77,6 +82,30 @@ class CameraImpl(object):
         
         # TODO: Broadcaster peek handler in Python
         self.device_clock_now.PeekInValueCallback = lambda ep: self._date_time_util.FillDeviceTime(self._camera_info.device_info,self._seqno)
+
+        self._state_timer = RRN.CreateTimer(0.05, self._state_timer_cb)
+        self._state_timer.Start()
+
+    def _close(self):
+        if self._streaming:
+            with suppress(Exception):
+                self.stop_streaming()
+        if self._state_timer:
+            self._state_timer.TryStop()
+        if self._capture:
+            self._capture.release()
+
+    def _state_timer_cb(self, timer_evt):
+        s = self._camera_state_type()
+        self._seqno += 1
+        s.ts = self._date_time_util.TimeSpec3Now()
+        s.seqno = self._seqno
+        flags = self._imaging_consts["CameraStateFlags"]["ready"]
+        if self._streaming:
+            flags |= self._imaging_consts["CameraStateFlags"]["streaming"]
+        s.state_flags = flags
+
+        self.camera_state.OutValue = s
 
     @property
     def device_info(self):
@@ -298,6 +327,8 @@ def main():
         #Wait for exit
         print("Press Ctrl-C to quit...")
         drekar_launch_process.wait_exit()
+
+        camera._close()
 
 if __name__ == "__main__":
     main()
