@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "robotraconteur-camera-driver"
+version = "0.2.0"
+authors = [
+    {name = "John Wason", email = "wason@wasontech.com"}
+]
+description = "Robot Raconteur camera driver using OpenCV camera capture"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.8"
+dependencies = [
+    "robotraconteur",
+    "robotraconteurcompanion",
+    "drekar-launch-process",
+    "opencv-contrib-python"
+]
+readme = "README.md"
+
+[project.scripts]
+robotraconteur-camera-driver = "robotraconteur_camera_driver:main"
+
+[tool.setuptools]
+py-modules = [
+    "robotraconteur_camera_driver"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest"
+]
