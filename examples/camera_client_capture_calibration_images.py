@@ -22,6 +22,7 @@ import numpy as np
 import traceback
 from pathlib import Path
 
+
 def main():
 
     # Create the directory for saving the calibration images
@@ -49,7 +50,6 @@ def main():
         # Convert raw_frame to opencv format using companion library ImageUtil
         current_frame = image_util.compressed_image_to_array(raw_frame)
 
-        
         cv2.namedWindow("Image")
 
         cv2.imshow("Image", current_frame)
@@ -59,9 +59,10 @@ def main():
         if rv != -1:
             with open(img_dir / f"calibration_image_{i}.png", "wb") as f:
                 f.write(raw_frame.data.tobytes())
-            i+=1
+            i += 1
 
     cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     main()

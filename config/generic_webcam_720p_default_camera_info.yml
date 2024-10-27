@@ -9,13 +9,13 @@ device_info:
     uuid: f12633b4-fd08-48b6-80a0-713df096695b
   serial_number: 123456789
   device_classes:
-    - class_identifier:
-        name: usb_camera
-        uuid: b25bf959-7ba9-46be-989e-5529026a00da
-      subclasses:
-        - webcam
+  - class_identifier:
+      name: usb_camera
+      uuid: b25bf959-7ba9-46be-989e-5529026a00da
+    subclasses:
+    - webcam
   implemented_types:
-    - com.robotraconteur.imaging.Camera
+  - com.robotraconteur.imaging.Camera
 calibration:
   image_size:
     width: 1280
