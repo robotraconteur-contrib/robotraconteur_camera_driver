@@ -53,7 +53,7 @@ def main():
 
         # This example does not attempt to estimate the pose of the markers,
         # but the corners and ids can be used to estimate the pose using cv2.aruco.estimatePoseSingleMarkers
-        
+
         cv2.imshow("Detected Markers", current_frame2)
         ret = cv2.waitKey(50)
         if ret != -1:
