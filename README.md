@@ -41,7 +41,7 @@ See the Docker section for installation instructions using docker.
 
 Example usage:
 
-    python robotraconteur_camera_driver.py --camera-info-file=config/generic_webcam_1080p_default_camera_info.yml --width=1280 --height=720 --fps=20 --device-id=0
+    python -m robotraconteur_camera_driver --camera-info-file=config/generic_webcam_1080p_default_camera_info.yml --width=1280 --height=720 --fps=20 --device-id=0
 
 On Ubuntu, use `python3` instead of `python`
 
